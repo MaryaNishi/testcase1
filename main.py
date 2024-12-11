@@ -30,6 +30,16 @@ def create_token(payload: dict):
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     return token
 
+def validate_auth(auth: str):
+    if not auth:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
+    
+    splitted = auth.split()
+
+    if len(splitted) != 2 and splitted[0].lower() != 'bearer':
+        raise HTTPException(status_code=401, detail="Authorization header is invalid")
+
+    return splitted[1]
 
 @app.get("/refresh")
 def refresh(refresh_token: str):
@@ -63,22 +73,7 @@ def login(user: User):
 @app.get("/protected")
 def protected_route(request: Request):
     try:
-        auth = request.headers.get("Authorization")
-        print(auth)
-        if not auth:
-            raise HTTPException(status_code=401, detail="Authorization header is missing")
-        
-        match = re.search(r"Bearer (.+)", auth)
-        if not match:
-            raise HTTPException(status_code=401, detail="Authorization header is invalid")
-        token = match.group(1)
-
-        '''
-            splitted = auth.split()
-            if splitted != 2 and splitted[0].lower() != 'bearer':
-                raise HTTPException(status_code=401, detail="Authorization header is invalid")
-        '''
-        
+        token = validate_auth(request.headers.get("Authorization"))
         payload = jwt.decode(token, SECRET_KEY, algorithms=ALGORITHM)
         username = payload.get("sub")
         if not username:
