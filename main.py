@@ -1,17 +1,20 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from jose import jwt
 from pydantic import BaseModel
 from datetime import datetime, timezone, timedelta
 import secrets
-from fastapi.security import OAuth2PasswordBearer
+import re
+
 
 app = FastAPI()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = 'HS256'
 
-users_db = {}
+users_db = {
+    'user1': 'user1',
+    'user2': 'user2'
+}
 
 class User(BaseModel):
     username: str
@@ -31,7 +34,7 @@ def create_token(payload: dict):
 @app.get("/refresh")
 def refresh(refresh_token: str):
     try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithm=ALGORITHM)
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=ALGORITHM)
         username = payload.get("sub")
         if username is None:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
@@ -58,9 +61,25 @@ def login(user: User):
 
 
 @app.get("/protected")
-def protected_route(token: str = Depends(oauth2_scheme)):
+def protected_route(request: Request):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithm=ALGORITHM)
+        auth = request.headers.get("Authorization")
+        print(auth)
+        if not auth:
+            raise HTTPException(status_code=401, detail="Authorization header is missing")
+        
+        match = re.search(r"Bearer (.+)", auth)
+        if not match:
+            raise HTTPException(status_code=401, detail="Authorization header is invalid")
+        token = match.group(1)
+
+        '''
+            splitted = auth.split()
+            if splitted != 2 and splitted[0].lower() != 'bearer':
+                raise HTTPException(status_code=401, detail="Authorization header is invalid")
+        '''
+        
+        payload = jwt.decode(token, SECRET_KEY, algorithms=ALGORITHM)
         username = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -73,4 +92,6 @@ def protected_route(token: str = Depends(oauth2_scheme)):
     except Exception as e:
         print(f"Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Server error")
+
+    
 
